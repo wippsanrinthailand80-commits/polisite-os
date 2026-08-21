@@ -1,5 +1,5 @@
 //! Minimal 16550 UART serial driver (COM1, 0x3F8).
-//! Non-blocking for the skeleton; a proper THRE poll + UART init comes later.
+//! Now polls THR empty (LSR bit 5) before each write.
 
 use crate::io;
 use core::fmt::Write;
@@ -18,8 +18,11 @@ impl core::fmt::Write for Serial {
 }
 
 fn putc(byte: u8) {
-    // QEMU's UART is always ready; a real driver should poll LSR.THRE first.
-    unsafe { io::outb(COM1, byte) };
+    // Wait for THR empty (LSR bit 5 at offset 5 from base port)
+    unsafe {
+        while (io::inb(COM1 + 5) & 0x20) == 0 {}
+        io::outb(COM1, byte);
+    }
 }
 
 pub fn write_str(msg: &str) {

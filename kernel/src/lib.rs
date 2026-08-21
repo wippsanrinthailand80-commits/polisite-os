@@ -29,6 +29,10 @@ const RAMDISK: &[u8] = include_bytes!("embedded_ramdisk.tar");
 
 #[no_mangle]
 pub extern "C" fn _start() -> ! {
+    // Debug: write to ISA debug exit port (0xf4) so QEMU exits with this value
+    // if the kernel is entered. Value 0x10 = "kernel entered".
+    unsafe { io::outb(0xf4, 0x10) };
+
     serial::write_str("Polisite OS — kernel starting\r\n");
 
     // Prove the embedded ramdisk (real content) is part of the kernel image.

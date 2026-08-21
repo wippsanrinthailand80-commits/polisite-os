@@ -33,21 +33,29 @@ jobs:
       - name: Build kernel + ISO
         run: bash build/build.sh
 
-      - name: QEMU smoke test
+- name: QEMU smoke test
         run: |
           set -uo pipefail
-          # The kernel halts in an idle loop after booting, so QEMU is killed
-          # by the timeout (rc=124). That is expected; success is judged by
-          # the boot banner on the serial log, not by QEMU's exit code.
+          # The kernel writes 0x10 to port 0xf4 on entry (ISA debug exit).
+          # If the kernel is entered, QEMU exits with 0x10 (16).
+          # We run with a generous timeout; success is judged by exit code 16.
+          rc=0
           timeout 60 qemu-system-x86_64 \
             -m 512 -smp 1 -accel tcg \
             -cdrom build/output/polisite.iso -boot d \
             -serial file:serial.log -display none \
-            -device isa-debug-exit,iobase=0xf4 || true
+            -device isa-debug-exit,iobase=0xf4 || rc=$?
+          echo "QEMU exit code: $rc"
           echo "--- serial log ---"
           cat serial.log
+          # Expected exit code: 16 (0x10) = kernel entered.
+          if [ "$rc" -ne 16 ]; then
+            echo "Expected QEMU exit code 16 (kernel entered), got $rc"
+            exit 1
+          fi
+          # Also verify the banner is in the serial log as a secondary check.
           grep -q "boot OK" serial.log || {
-            echo "Boot banner not found; failing." >&2
+            echo "Boot banner not found in serial log" >&2
             exit 1
           }
 
