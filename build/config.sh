@@ -52,13 +52,23 @@ POLISITE_THAI_FONTS="${POLISITE_THAI_FONTS:-fonts-thai-tlwg fonts-noto-color-emo
   fonts-noto-extra}"
 POLISITE_LOCALES="${POLISITE_LOCALES:-en_US.UTF-8 th_TH.UTF-8}"
 
-# Curated apps (gaming + AI helpers are added on top in a later phase)
+# Curated apps — quiet+logo boot + bundled AI/gaming
+# Plymouth provides the "quiet + logo" boot (centered Polisite logo, no spinner).
 POLISITE_APPS="${POLISITE_APPS:-network-manager-gnome pavucontrol pulseaudio \
   udisks2 xfce4-screenshooter xarchiver gnome-font-viewer \
   ibus ibus-libthai im-config \
   bluez bluez-tools \
   plymouth plymouth-themes \
-  firefox-esr}"
+  firefox-esr \
+  steam-installer}"
+# Extra bundled apps installed via `aqa` on first boot / baked into the ISO
+# when possible (Chrome/VS Code need external repos; Steam via multiverse).
+# Spirit Shores (madel) is *excluded* until it's finished.
+POLISITE_BUNDLED_AQA_APPS="${POLISITE_BUNDLED_AQA_APPS:-vscode chrome steam}"
+# Sample AI + gaming payloads shipped as placeholder apps (real AI runtime
+# and a tiny demo game are added in Phase 3/5).
+POLISITE_AI_DEMO_PKGS="${POLISITE_AI_DEMO_PKGS:-polisite-ai-demo}"
+POLISITE_PLACEHOLDER_GAMES="${POLISITE_PLACEHOLDER_GAMES:-supertux 0ad}"
 POLISITE_SERVICES="${POLISITE_SERVICES:-ufw}"
 
 POLISITE_INSTALL_KERNEL_IN_ROOTFS="${POLISITE_INSTALL_KERNEL_IN_ROOTFS:-0}"
