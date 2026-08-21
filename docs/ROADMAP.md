@@ -41,6 +41,10 @@ Ordered, living plan. Each phase is independently testable under QEMU.
   (Arch), and `.mlpds`+`aqa` (Deposition) via compatibility shims onto Polisite's
   native package database — not forks of each upstream tool.
 - Graphics/audio stack enough to host a simple game.
+- **Bundled apps** (Spirit Shores excluded until finished): **VS Code**, **Chrome**,
+  **Chromium**, **Brave**, **Vivaldi**, **Opera**, **Edge** (all via `apt`/`aqa` when
+  Polisite runs as a Linux distro variant), **Steam**, plus AI demo + placeholder
+  games; `quiet+logo` Plymouth (`polisite-quiet`) for fast boot.
 
 ## Phase 6 — Real hardware & polish
 - Validate on a real PC (BIOS + UEFI USB install).

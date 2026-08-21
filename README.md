@@ -24,6 +24,11 @@ See [`docs/DESIGN.md`](docs/DESIGN.md) for the full architecture and
 Phase 0 (skeleton + toolchain). It boots to a framebuffer banner under QEMU and
 proves the Rust↔C↔Zig↔asm FFI works. Everything beyond is planned.
 
+Planned Phase 5 bundles (when Polisite runs as a Linux distro variant for real
+apps): **VS Code**, **Chrome**, **Chromium**, **Brave**, **Vivaldi**, **Opera**,
+**Edge**, **Steam** + AI demo (Spirit Shores excluded until finished); `quiet+logo`
+Plymouth.
+
 ## Prerequisites
 
 ```bash
