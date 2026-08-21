@@ -1,18 +1,12 @@
 # Build artifacts
 build/output/
-target/
 *.o
-*.elf
-*.iso
-*.img
-
-# Generated at build time (embedded into the kernel)
-kernel/src/embedded_ramdisk.tar
-kernel/src/splash.rgb
+*.ko
+*.mod
 
 # Editor / OS
 .DS_Store
 *.swp
 
-# Local env
+# Local env (contains GITHUB_TOKEN etc. — never commit)
 .env

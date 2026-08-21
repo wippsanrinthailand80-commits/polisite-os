@@ -11,56 +11,48 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install system tools
+      - name: Install kernel build deps
         run: |
           sudo apt-get update
-          sudo apt-get install -y nasm gcc gcc-multilib make lld llvm mtools xorriso qemu-system-x86
-          # limine is fetched by build.sh
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            build-essential bc flex bison libelf-dev libssl-dev \
+            wget xz-utils cpio kmod ccache \
+            qemu-system-x86
+          # ccache speeds up rebuilds; not required but nice
+          ccache --version || true
 
-      # The limine crate 0.6.x gates `#![feature(ptr_metadata)]`, so the kernel
-      # builds on nightly. rust-toolchain.toml selects it; this step installs it.
-      - name: Install Rust (nightly)
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: nightly
-          targets: x86_64-unknown-none
+      - name: Build Linux kernel (x86_64, tinyconfig for CI)
+        run: |
+          export POLISITE_ARCH=x86_64
+          export POLISITE_KERNEL_TINY=1
+          export POLISITE_KERNEL_JOBS=$(nproc)
+          bash build/build.sh
+          echo "--- kernel artefact ---"
+          ls -lh build/output/kernel/boot/
+          file build/output/kernel/boot/vmlinuz-*
 
-      - name: Install Zig
-        uses: korandoru/setup-zig@v1
-        with:
-          zig-version: 0.13.0
-
-      - name: Build kernel + ISO
-        run: bash build/build.sh
-
-      - name: QEMU smoke test
+      - name: QEMU smoke — does the kernel boot?
         run: |
           set -uo pipefail
-          # The kernel writes 0x10 to port 0xf4 on entry (ISA debug exit).
-          # If the kernel is entered, QEMU exits with 0x10 (16).
-          # We run with a generous timeout; success is judged by exit code 16.
-          rc=0
-          timeout 60 qemu-system-x86_64 \
+          KERN=$(ls build/output/kernel/boot/vmlinuz-* | head -n1)
+          echo "Booting $KERN with QEMU (x86_64) ..."
+          timeout 30 qemu-system-x86_64 \
             -m 512 -smp 1 -accel tcg \
-            -cdrom build/output/polisite.iso -boot d \
-            -serial file:serial.log -display none \
-            -device isa-debug-exit,iobase=0xf4 || rc=$?
-          echo "QEMU exit code: $rc"
-          echo "--- serial log ---"
-          cat serial.log
-          # Expected exit code: 16 (0x10) = kernel entered.
-          if [ "$rc" -ne 16 ]; then
-            echo "Expected QEMU exit code 16 (kernel entered), got $rc"
-            exit 1
-          fi
-          # Also verify the banner is in the serial log as a secondary check.
-          grep -q "boot OK" serial.log || {
-            echo "Boot banner not found in serial log" >&2
+            -kernel "$KERN" \
+            -append "console=ttyS0 earlyprintk=serial" \
+            -serial file:serial.log -display none -nographic || rc=$?
+          echo "QEMU exit code: ${rc:-0}"
+          echo "--- serial log (first 80 lines) ---"
+          cat serial.log | head -n 80
+          # A Linux boot always prints "Linux version" on the serial console.
+          grep -q "Linux version" serial.log || {
+            echo "Kernel did not print 'Linux version' — boot may have failed" >&2
             exit 1
           }
+          echo "Smoke test passed."
 
-      - name: Upload artifacts
+      - name: Upload kernel artefact
         uses: actions/upload-artifact@v4
         with:
-          name: polisite-iso
-          path: build/output/polisite.iso
+          name: polisite-kernel-x86_64
+          path: build/output/kernel/boot/vmlinuz-*
