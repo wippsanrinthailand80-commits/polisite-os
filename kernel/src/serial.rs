@@ -22,12 +22,12 @@ fn putc(byte: u8) {
     unsafe { io::outb(COM1, byte) };
 }
 
-pub fn write_str(s: &str) {
-    let mut s = Serial;
-    let _ = s.write_str(s);
+pub fn write_str(msg: &str) {
+    let mut ser = Serial;
+    let _ = ser.write_str(msg);
 }
 
 pub fn write_fmt(args: core::fmt::Arguments) {
-    let mut s = Serial;
-    let _ = s.write_fmt(args);
+    let mut ser = Serial;
+    let _ = ser.write_fmt(args);
 }
