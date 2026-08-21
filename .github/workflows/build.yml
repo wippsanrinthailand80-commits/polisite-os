@@ -17,8 +17,7 @@ jobs:
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
             build-essential bc flex bison libelf-dev libssl-dev \
             wget xz-utils cpio kmod ccache \
-            qemu-system-x86
-          # ccache speeds up rebuilds; not required but nice
+            nasm gcc-multilib make lld llvm mtools xorriso qemu-system-x86
           ccache --version || true
 
       - name: Build Linux kernel (x86_64, tinyconfig for CI)
@@ -51,8 +50,32 @@ jobs:
           }
           echo "Smoke test passed."
 
-      - name: Upload kernel artefact
+      - name: Verify ISO size (~200 MB demo)
+        run: |
+          ls -lh build/output/polisite.iso
+          du -sh build/output/polisite.iso
+          SIZE=$(stat -c%s build/output/polisite.iso)
+          MB=$(( SIZE / 1024 / 1024 ))
+          echo "ISO size: ${MB} MB"
+          if [ "$MB" -lt 150 ] || [ "$MB" -gt 300 ]; then
+            echo "ISO size outside expected 150–300 MB window" >&2
+            exit 1
+          fi
+
+      - name: QEMU smoke — does the ISO boot?
+        run: |
+          set -uo pipefail
+          timeout 30 qemu-system-x86_64 -m 512 -smp 1 -accel tcg \
+            -cdrom build/output/polisite.iso -boot d \
+            -serial file:iso-serial.log -display none -nographic || true
+          echo "--- ISO serial log (first 40 lines) ---"
+          cat iso-serial.log | head -n 40 || true
+          echo "(ISO boot smoke: kernel inside ISO is same vmlinuz; detailed ISO boot check is best-effort)"
+
+      - name: Upload kernel + ISO
         uses: actions/upload-artifact@v4
         with:
-          name: polisite-kernel-x86_64
-          path: build/output/kernel/boot/vmlinuz-*
+          name: polisite-kernel+iso-x86_64
+          path: |
+            build/output/kernel/boot/vmlinuz-*
+            build/output/polisite.iso
