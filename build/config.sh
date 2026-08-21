@@ -66,6 +66,9 @@ POLISITE_APPS="${POLISITE_APPS:-network-manager-gnome pavucontrol pulseaudio \
 # kernel fragment already enables DRM_AMDGPU/SI/CIK, DRM_RADEON, DRM_NOUVEAU;
 # the proprietary NVIDIA stack is installed as an apt package (not in-kernel).
 POLISITE_NVIDIA_PKGS="${POLISITE_NVIDIA_PKGS:-nvidia-driver-535 nvidia-utils-535}"
+# CPU — Intel + AMD microcode/firmware and cpufreq tools. The kernel fragment
+# enables MICROCODE_INTEL/AMD and MCE. Installed in the live ISO / target.
+POLISITE_CPU_PKGS="${POLISITE_CPU_PKGS:-intel-microcode amd64-microcode cpufrequtils linux-cpupower}"
 # Extra bundled apps installed via `aqa` on first boot / baked into the ISO
 # when possible (Chrome/VS Code need external repos; Steam via multiverse).
 # Spirit Shores (madel) is *excluded* until it's finished.
