@@ -42,8 +42,8 @@ pub extern "C" fn _start() -> ! {
     unsafe { io::outb(0x80, 0x00) }; // POST port write (no-op, proves outb)
 
     // Framebuffer proof-of-life: fill with a brand color.
-    if let Some(resp) = FRAMEBUFFER_REQUEST.get_response() {
-        if let Some(fb) = resp.framebuffers().next() {
+    if let Some(resp) = FRAMEBUFFER_REQUEST.response() {
+        if let Some(fb) = resp.framebuffers().first() {
             framebuffer::fill(fb, 0x002b_3a_5b);
             serial::write_str("Framebuffer acquired and filled.\r\n");
         }

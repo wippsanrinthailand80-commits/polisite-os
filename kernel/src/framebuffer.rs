@@ -14,9 +14,9 @@ pub fn fill(fb: &Framebuffer, color: u32) {
     let width = fb.width as usize;
     let height = fb.height as usize;
 
-    // NOTE: limine crate 0.4 exposes the base as `fb.address` (a *mut u8).
-    // If your pinned version uses `fb.addr`, change this one line.
-    let base = fb.address as *mut u8;
+    // limine crate 0.6 exposes the base via `fb.address()` (a *mut ()),
+    // and width/height/pitch/bpp as public fields.
+    let base = fb.address() as *mut u8;
 
     for y in 0..height {
         for x in 0..width {
