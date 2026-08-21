@@ -33,9 +33,13 @@ Ordered, living plan. Each phase is independently testable under QEMU.
 - Initial ramdisk (tarfs) + a native read/write FS; FAT32 for USB.
 - USB (xHCI) basics.
 
-## Phase 5 — Userspace
+## Phase 5 — Userspace & packaging
 - Static `init` + shell; a small libc + program loader.
-- Package format + installer (mirror `deposit-os` `.mlpds`/`aqa` ideas later).
+- **Polisite's own installer** (installs Polisite to disk, multi-boot coexist),
+  shipping as two editions: **ALP** and **MSX** (variant behaviour TBD).
+- **Foreign app-install support**: consume `.deb` (Ubuntu/Mint), `.pkg.tar.zst`
+  (Arch), and `.mlpds`+`aqa` (Deposition) via compatibility shims onto Polisite's
+  native package database — not forks of each upstream tool.
 - Graphics/audio stack enough to host a simple game.
 
 ## Phase 6 — Real hardware & polish

@@ -126,7 +126,38 @@ polisite-os/
   tools/           future userspace tooling
 ```
 
-## 12. Build pipeline
+## 12. Packaging & installation
+
+Polisite OS must be easy to deploy and able to run software from the surrounding
+Linux ecosystem. These are two distinct concerns:
+
+### 12.1 Polisite's own installer
+A first-party installer that **installs the Polisite OS itself** to disk
+(ESP + root partition, bootloader, initramfs). It must:
+- coexist with other OSes via a multi-boot entry (GRUB/Limine chainload or its
+  own boot menu), and
+- ship as two editions: **ALP** and **MSX** (variant behaviour TBD — see note
+  at end of this section).
+
+### 12.2 Foreign application-install support
+Other distros' installers put **applications onto the machine**. To feel like a
+real, useful OS, Polisite supports *consuming* their package/install formats:
+
+| Source OS      | Format(s) to support          | Family / notes |
+|----------------|-------------------------------|----------------|
+| Ubuntu / Mint  | `.deb` (dpkg/apt), AppStream  | Debian-family |
+| Arch           | `.pkg.tar.zst` (pacman)       | Arch-family |
+| Deposition     | `.mlpds` + `aqa` installer    | successor to Deposit OS; mirrors its packaging |
+
+Approach (Phase 5+): a native package manager plus **compatibility shims** that
+map these foreign formats onto Polisite's internal package database, rather than
+forking each upstream tool. Full binary/ABI compatibility is a stretch goal.
+
+> **TODO:** define what distinguishes the **ALP** vs **MSX** installer variants
+> (e.g. full GUI vs minimal CLI, desktop vs handheld target, online vs offline
+> media). Update this section once decided.
+
+## 13. Build pipeline
 
 `build/build.sh` orchestrates (all output to `build/output/`):
 
@@ -140,14 +171,14 @@ polisite-os/
 Prerequisites: `nasm`, `gcc`/`clang`, `zig`, `rustup` (+`x86_64-unknown-none`),
 `lld` (or `ld.lld`), `limine`, `qemu-system-x86_64`.
 
-## 13. Non-goals (v1)
+## 14. Non-goals (v1)
 
 - No network stack in the very first boot (added right after framebuffer).
 - No GUI toolkit in-kernel; compositor only.
 - No binary compat with Linux/Windows yet.
 - No security MAC in v1 (add after the core is stable).
 
-## 14. Risks
+## 15. Risks
 
 - Mixing 4 toolchains increases build complexity — mitigated by one script and a
   fixed FFI ABI.
