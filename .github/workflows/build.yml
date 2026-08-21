@@ -20,10 +20,10 @@ jobs:
             nasm gcc-multilib make lld llvm mtools xorriso qemu-system-x86
           ccache --version || true
 
-      - name: Build Linux kernel (x86_64, tinyconfig for CI)
+      - name: Build Linux kernel (x86_64, full defconfig+broad for realistic size)
         run: |
           export POLISITE_ARCH=x86_64
-          export POLISITE_KERNEL_TINY=1
+          export POLISITE_KERNEL_TINY=0
           export POLISITE_KERNEL_JOBS=$(nproc)
           bash build/build.sh
           echo "--- kernel artefact ---"
