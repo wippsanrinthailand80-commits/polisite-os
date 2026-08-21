@@ -58,11 +58,8 @@ pub extern "C" fn _start() -> ! {
 #[panic_handler]
 fn panic(info: &core::panic::PanicInfo) -> ! {
     serial::write_str("KERNEL PANIC: ");
-    if let Some(msg) = info.message() {
-        serial::write_fmt(format_args!("{}\r\n", msg));
-    } else {
-        serial::write_str("(no message)\r\n");
-    }
+    let msg = info.message();
+    serial::write_fmt(format_args!("{}\r\n", msg));
     loop {
         unsafe { io::halt() };
     }

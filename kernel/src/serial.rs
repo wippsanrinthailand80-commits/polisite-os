@@ -2,6 +2,7 @@
 //! Non-blocking for the skeleton; a proper THRE poll + UART init comes later.
 
 use crate::io;
+use core::fmt::Write;
 
 const COM1: u16 = 0x3f8;
 
