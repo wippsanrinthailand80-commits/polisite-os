@@ -64,9 +64,9 @@ jobs:
           echo "QEMU exit code: $rc"
           echo "--- serial log ---"
           cat serial.log
-          # Expected exit code: 16 (0x10) = kernel entered.
-          if [ "$rc" -ne 16 ]; then
-            echo "Expected QEMU exit code 16 (kernel entered), got $rc"
+          # isa-debug-exit exit code is (value<<1)|1, so 0x10 -> 33
+          if [ "$rc" -ne 33 ]; then
+            echo "Expected QEMU exit code 33 (0x10 -> (0x10<<1)|1), got $rc"
             exit 1
           fi
           # Also verify the banner is in the serial log as a secondary check.
