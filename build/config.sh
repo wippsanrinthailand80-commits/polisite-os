@@ -60,7 +60,12 @@ POLISITE_APPS="${POLISITE_APPS:-network-manager-gnome pavucontrol pulseaudio \
   bluez bluez-tools \
   plymouth plymouth-themes \
   firefox-esr \
-  steam-installer}"
+  steam-installer \
+  mesa-vulkan-drivers mesa-utils firmware-amd-graphics firmware-misc-nonfree}"
+# GPU stacks — AMD (amdgpu/radeon) and NVIDIA (nouveau + proprietary). The
+# kernel fragment already enables DRM_AMDGPU/SI/CIK, DRM_RADEON, DRM_NOUVEAU;
+# the proprietary NVIDIA stack is installed as an apt package (not in-kernel).
+POLISITE_NVIDIA_PKGS="${POLISITE_NVIDIA_PKGS:-nvidia-driver-535 nvidia-utils-535}"
 # Extra bundled apps installed via `aqa` on first boot / baked into the ISO
 # when possible (Chrome/VS Code need external repos; Steam via multiverse).
 # Spirit Shores (madel) is *excluded* until it's finished.
