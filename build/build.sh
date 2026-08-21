@@ -49,7 +49,9 @@ if [ ! -d "$LIMINE_DIR/bin" ]; then
     curl -sSL "https://github.com/limine-bootloader/limine/releases/download/v${LIMINE_VER}/limine-${LIMINE_VER}.tar.gz" -o "$OUT/limine.tar.gz"
     tar -xzf "$OUT/limine.tar.gz" -C "$OUT"
     mv "$OUT/limine-${LIMINE_VER}" "$LIMINE_DIR"
-    ( cd "$LIMINE_DIR" && ./configure && make )
+    # Limine v12 disables every port by default (BUILD_ALL=no); enable the
+    # ones we ship: BIOS (+CD image) and x86-64 UEFI.
+    ( cd "$LIMINE_DIR" && ./configure --enable-bios --enable-bios-cd --enable-uefi-x86-64 && make )
 fi
 
 rm -rf "$OUT/iso_root"
