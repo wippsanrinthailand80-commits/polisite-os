@@ -17,8 +17,13 @@ jobs:
           sudo apt-get install -y nasm gcc xorriso qemu-system-x86
           # limine is fetched by build.sh
 
-      - name: Install Rust target
-        run: rustup target add x86_64-unknown-none
+      # The limine crate 0.6.x gates `#![feature(ptr_metadata)]`, so the kernel
+      # builds on nightly. rust-toolchain.toml selects it; this step installs it.
+      - name: Install Rust (nightly)
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: nightly
+          targets: x86_64-unknown-none
 
       - name: Install Zig
         uses: korandoru/setup-zig@v1
