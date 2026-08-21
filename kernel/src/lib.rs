@@ -29,13 +29,29 @@ const RAMDISK: &[u8] = include_bytes!("embedded_ramdisk.tar");
 
 #[no_mangle]
 pub extern "C" fn _start() -> ! {
+    // Enable SSE/FPU so the Zig f32 AI kernels and any float formatting work.
+    // Limine enters with paging on but does not guarantee FPU/SSE is enabled.
+    unsafe {
+        core::arch::asm!(
+            "mov rax, cr0",
+            "and ax, 0xFFFB",
+            "or ax, 0x2",
+            "mov cr0, rax",
+            "mov rax, cr4",
+            "or ax, 0x600",
+            "mov cr4, rax",
+            out("rax") _,
+        );
+    }
+
     serial::write_str("Polisite OS — kernel starting\r\n");
 
     // Prove the embedded ramdisk (real content) is part of the kernel image.
+    // Use integer MiB to avoid float before SSE is known-good.
     serial::write_fmt(format_args!(
-        "Embedded ramdisk: {} bytes ({:.1} MiB)\r\n",
+        "Embedded ramdisk: {} bytes ({} MiB)\r\n",
         RAMDISK.len(),
-        RAMDISK.len() as f32 / (1024.0 * 1024.0)
+        RAMDISK.len() / (1024 * 1024)
     ));
 
     // Prove the C layer works (flat extern "C" FFI).
