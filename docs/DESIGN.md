@@ -1,133 +1,187 @@
 # Polisite OS — Kernel Design
 
-> A gaming- and AI-first **Linux distribution** for `x86_64`.
-> Built by compiling its own Linux kernel from upstream source (like Deposit OS).
+> A from-scratch, gaming- and AI-first operating system kernel for `x86_64`.
+> Built to run first under QEMU, then on real hardware (BIOS + UEFI).
 
-This document is the source of truth for **architecture and intent**. The
-original from-scratch Rust/C/Zig/asm kernel has been archived; Polisite now
-builds on **Linux 6.6.58 LTS** for broad driver, GPU, and AI-accelerator
-support, while keeping the gaming/AI-first product goals.
+This document is the source of truth for **architecture and intent**. Code in
+`kernel/` is the matching skeleton. Nothing here is set in stone — it is a
+living plan.
 
 ---
 
-## 1. Why Linux (and not a from-scratch kernel)
+## 1. Why a new kernel (not another Linux distro)
 
-`deposit-os` in this family is a Linux distribution (custom kernel config +
-userspace). Polisite *was* a from-scratch hobby kernel, but to prioritise
-**real gaming and AI hardware** (GPUs, NPUs, controllers, audio, networking)
-it now reuses the same approach: **own kernel compiled from kernel.org**,
-not a respin. This gives direct control over config/patches without
-reimplementing drivers, filesystems, and scheduling from zero.
-
-The from-scratch work is kept as a reference in git history.
+`deposit-os` and `dietpex-os` in this family are **Linux distributions** (custom
+kernel config + userspace). Polisite OS is different: it is a **new kernel
+written from scratch**, not a repackaged Linux. The goal is direct control over
+scheduling, graphics, and compute so gaming and on-device AI get first-class,
+low-latency treatment that a general-purpose OS cannot easily give.
 
 ## 2. Product positioning
 
-- **Gaming-first**: low-latency input, a lean compositor path, and a scheduler
-  that favours the active game's render/input threads; broad GPU driver
-  coverage via the upstream kernel.
-- **AI-first**: first-class on-device inference (NPU/GPU offload, a small
-  tensor runtime in userspace, and an "AI scheduler" policy).
-- **Still a real OS**: preemptive multitasking, drivers, filesystems, a shell,
-  and a package story — powerful enough for desktop/handheld.
+- **Gaming-first**: predictable frame pacing, low-latency input, a lean
+  graphics/composition path, and a scheduler that treats the render thread as a
+  priority citizen.
+- **AI-first**: first-class support for on-device inference (NPU/GPU offload,
+  a small tensor runtime in the kernel or a privileged userspace service), and
+  an "AI scheduler" that allocates compute between games, background inference,
+  and the OS.
+- **Still a real OS**: preemptive multitasking, virtual memory, drivers,
+  filesystems, a shell, and a package story — powerful enough to live on a
+  desktop or handheld.
 
-## 3. Kernel choice
+## 3. Language strategy (the "mix")
 
-| Choice | Value |
-|--------|-------|
-| Base   | Linux **6.6.58** LTS (same upstream as Deposit OS) |
-| Config | `defconfig` (or `tinyconfig` for CI) + `build/kernel-fragments/polisite-broad.cfg` |
-| Arch   | `x86_64` (primary) |
-| Source | `https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-6.6.58.tar.xz` (mirrors in `build-kernel.sh`) |
-| Patches| none yet; gaming/AI tuning will land as fragment deltas or small patches |
+Each language owns a layer it is best at. They meet at a clean **FFI boundary**
+(`extern "C"` ABI, System V x86_64 calling convention).
 
-The broad fragment enables SMP, PCI, ACPI, EFI, NVMe/SATA/USB storage, ext4/FAT/ISO9660/overlay, namespaces/cgroups, VirtIO, common NICs (e1000/e1000e/r8169), USB HID, DRM/simpledrm + fbdev console, 8250 serial, etc. — enough to boot on real hardware or QEMU.
+| Language | Role in the kernel | Why here |
+|----------|--------------------|----------|
+| **Assembly (NASM)** | CPU port I/O (`inb`/`outb`), early CPU setup, `hlt`, context-switch / interrupt trampolines, tight `memcpy`/`memset`. | Nothing else can touch the hardware primitives; smallest, dependency-free. |
+| **C** | Low-level hardware/ABI glue, early C runtime (`crt0`-style helpers), reuse of battle-tested C algorithms (compression, crypto, filesystem codecs). | Maximum control, vast existing embedded/OS code to borrow. |
+| **Zig** | Performance & math kernels and **AI primitives**: vector/matrix ops, activations, quantisation, SIMD kernels. | Excellent freestanding support, C ABI, safe-but-fast, great for hot numeric loops. |
+| **Rust** | The **systems core**: kernel `kmain`, physical/virtual memory manager, scheduler, driver framework, VFS, framebuffer compositor, shell, and the FFI surface to C/Zig. | Memory safety without GC, strong type system, best tooling for a large, evolving codebase. |
+
+Hard rule: **all cross-language calls go through `extern "C"`**. No language
+reaches into another's internals. Rust is the integrator; C/Zig/asm expose
+flat C-ABI functions.
 
 ## 4. Boot & loader
 
-- **Live media**: GRUB2 + `live-boot` + SquashFS ISO (planned, mirroring Deposit's `ci/make-iso.sh`).
-- **QEMU smoke**: direct `-kernel` boot for the kernel artefact (`vmlinuz-*`) in CI; full ISO boot later.
-- **Bare metal**: GPT (ESP + ext4 root), GRUB for BIOS + UEFI.
+- **Bootloader: [Limine](https://limine-bootloader.org/)** (per the sibling
+  convention of GRUB-free, BIOS+UEFI-capable images).
+- Limine jumps straight to a **64-bit** entry (`_start` in Rust), so we avoid
+  hand-writing long-mode paging bring-up. Limine sets up the page tables and
+  hands us a rich `BootInfo` (framebuffer, memory map, ACPI/RSDP, SMP).
+- **Higher-half kernel**: linked at `0xffffffff80000000` (the Limine-recommended
+  location). Identity/recursive mapping is Limine's job.
+- Output targets: **BIOS** (`limine bios-install`) and **UEFI**
+  (`limine-uefi`), plus a hybrid **ISO** for QEMU and USB install.
 
-## 5. Memory model
+## 5. Memory model (first cut)
 
-Linux VM (buddy/SLAB/SLUB, KSM, zswap — kernel defaults). No custom allocator.
+- Higher-half direct map for physical RAM below 4 GiB; proper page tables for
+  the rest.
+- **Buddy allocator** for physical pages (C or Rust).
+- **Heap**: a small `bump`/`slab` allocator for kernel allocations (start with a
+  bump allocator, graduate to slab).
+- No swap in v1; on-demand paging only for the kernel's own needs.
 
-## 6. Scheduling (gaming + AI aware, userspace policy)
+## 6. Scheduling (gaming + AI aware)
 
-- Linux CFS + RT classes; a userspace policy layer steers:
-  - a render/input "RT-ish" class for the active game,
-  - an **AI class** for background inference that can be capped/preempted.
+- Preemptive, priority + **deadline** aware.
+- A render/input "real-time-ish" class for the active game's main + render
+  threads (low latency, pinned).
+- An **AI class** for inference workloads that can tolerate preemption and be
+  steered by an "AI scheduler" policy (e.g. cap background inference to N% unless
+  on AC power).
+- SMP via Limine's SMP request; per-CPU run queues.
 
 ## 7. Graphics & input (gaming)
 
-- DRM/KMS + Mesa in userspace; a small compositor with vsync-aware present;
-  low-latency input path (evdev/libinput).
+- Early: Limine **framebuffer** (linear, direct pixel writes) + a tiny text/UI
+  layer in Rust.
+- Next: a kernel **compositor** with vsync-aware presentation and a low-latency
+  input path (keyboard/mouse/gamepad via the relevant drivers).
+- GPU: start with framebuffer; add a VirtIO-GPU and (later) vendor drivers.
 
 ## 8. AI subsystem
 
-- Privileged inference service in userspace (later a tiny tensor runtime);
-  hardware offload hooks for NPU/GPU (VirtIO-accel, later vendor).
-- Hot math kernels may still be written in **Zig** as userspace libs.
+- A privileged **inference service** (runs in kernel-managed memory; later a
+  trusted userspace daemon) exposing a small tensor runtime.
+- Core math implemented in **Zig** (`kernel/zig/ai_math.zig`): dot products,
+  matrix multiply, activations, quantised INT8/INT4 kernels.
+- Hardware offload hooks for NPU/GPU (VirtIO-accel, later vendor).
+- Use cases: NPC behavior, upscaling/denoising, accessibility, OS assistant.
 
 ## 9. Driver framework
 
-Upstream Linux drivers. Polisite adds only config/patches.
+- Uniform `Driver` trait in Rust; probe/attach via device tree / ACPI.
+- First drivers: UART (serial), framebuffer, PS/2 or VirtIO input, VirtIO-BLK
+  (disk), VirtIO-GPU, RTC, HPET/APIC timers, PCI scan.
 
-## 10. Filesystem & userspace (planned)
+## 10. Filesystem & userspace (later)
 
-- `debootstrap` of Ubuntu 24.04 (Noble), glibc-based, systemd — ABI-compatible
-  with the Debian/Ubuntu package pool.
-- Own packaging (`.mlpds`/`aqa` compat with Deposition/Deposit) and curated apps.
+- Start with a **tarfs/initial ramdisk** loaded by Limine.
+- Then a native read/write FS; FAT32 for USB interchange.
+- A minimal **userspace**: a static `init` + shell; eventually a libc + loader
+  so native Polisite apps and a compatibility layer (Linux-ABI binary compat is a
+  stretch goal) can run.
 
 ## 11. Repository layout
 
 ```
 polisite-os/
-  docs/                DESIGN.md, ROADMAP.md
-  build/               config.sh, build-kernel.sh, kernel-fragments/, build.sh
-  ci/                  (future: make-iso.sh, live-boot)
+  docs/            DESIGN.md, ROADMAP.md
+  kernel/
+    Cargo.toml     Rust crate (crate-type = staticlib)
+    kernel.ld      linker script (higher-half)
+    limine.conf    Limine config
+    src/           Rust: main(kmain), framebuffer, serial, io, ffi glue
+    asm/           io.asm (port I/O, hlt, memcpy/set)
+    c/             rt.c (C helpers), linkage.h
+    zig/           ai_math.zig (AI/vector kernels)
+  build/           build.sh (nasm+gcc+zig+cargo+ld.lld), run-qemu.sh
+  ci/              GitHub Actions build + QEMU smoke test
+  tools/           future userspace tooling
 ```
 
 ## 12. Packaging & installation
 
-### 12.1 Polisite's own installers
-Two editions that **install Polisite itself** to disk (ESP + root, bootloader):
-**ALP** and **MSX** (variant behaviour TBD — e.g. full GUI vs minimal, desktop
-vs handheld, online vs offline media).
+Polisite OS must be easy to deploy and able to run software from the surrounding
+Linux ecosystem. These are two distinct concerns:
+
+### 12.1 Polisite's own installer
+A first-party installer that **installs the Polisite OS itself** to disk
+(ESP + root partition, bootloader, initramfs). It must:
+- coexist with other OSes via a multi-boot entry (GRUB/Limine chainload or its
+  own boot menu), and
+- ship as two editions: **ALP** and **MSX** (variant behaviour TBD — see note
+  at end of this section).
 
 ### 12.2 Foreign application-install support
-Other distros' installers put **apps onto the machine**. Polisite will consume:
+Other distros' installers put **applications onto the machine**. To feel like a
+real, useful OS, Polisite supports *consuming* their package/install formats:
 
-| Source OS      | Format(s) |
-|----------------|-----------|
-| Ubuntu / Mint  | `.deb` (dpkg/apt) |
-| Arch           | `.pkg.tar.zst` (pacman) |
-| Deposition     | `.mlpds` + `aqa` (successor to Deposit) |
+| Source OS      | Format(s) to support          | Family / notes |
+|----------------|-------------------------------|----------------|
+| Ubuntu / Mint  | `.deb` (dpkg/apt), AppStream  | Debian-family |
+| Arch           | `.pkg.tar.zst` (pacman)       | Arch-family |
+| Deposition     | `.mlpds` + `aqa` installer    | successor to Deposit OS; mirrors its packaging |
 
-Via compatibility shims onto Polisite's native package DB.
+Approach (Phase 5+): a native package manager plus **compatibility shims** that
+map these foreign formats onto Polisite's internal package database, rather than
+forking each upstream tool. Full binary/ABI compatibility is a stretch goal.
 
-> **TODO:** define what distinguishes **ALP** vs **MSX** installer variants.
+> **TODO:** define what distinguishes the **ALP** vs **MSX** installer variants
+> (e.g. full GUI vs minimal CLI, desktop vs handheld target, online vs offline
+> media). Update this section once decided.
 
-## 13. Build pipeline (x86_64)
+## 13. Build pipeline
 
-`build/build.sh` wraps `build/build-kernel.sh`:
+`build/build.sh` orchestrates (all output to `build/output/`):
 
-1. Download `linux-6.6.58.tar.xz` from kernel.org (mirrors + retries).
-2. `make tinyconfig` (CI, `POLISITE_KERNEL_TINY=1`) or `defconfig` + fragments.
-3. `make -j$(nproc)` → `build/output/kernel/boot/vmlinuz-6.6.58`.
-4. (Planned) debootstrap rootfs + ISO.
+1. `nasm` → `io.o` (asm)
+2. `gcc -ffreestanding -mno-red-zone -fno-pic -nostdlib` → `rt.o` (C)
+3. `zig build-obj -target x86_64-freestanding` → `ai_math.o` (Zig)
+4. `cargo build --release` → `libkernel.a` (Rust, `x86_64-unknown-none`)
+5. `ld.lld -T kernel.ld` links the above into `polisite.elf`
+6. Limine builds the hybrid ISO / disk image.
 
-Prerequisites (x86_64): `build-essential` `bc` `flex` `bison` `libelf-dev`
-`libssl-dev` `qemu-system-x86` (for smoke).
+Prerequisites: `nasm`, `gcc`/`clang`, `zig`, `rustup` (+`x86_64-unknown-none`),
+`lld` (or `ld.lld`), `limine`, `qemu-system-x86_64`.
 
 ## 14. Non-goals (v1)
 
-- No from-scratch scheduler/VM reimplementation.
-- No GUI toolkit in-kernel.
+- No network stack in the very first boot (added right after framebuffer).
+- No GUI toolkit in-kernel; compositor only.
+- No binary compat with Linux/Windows yet.
+- No security MAC in v1 (add after the core is stable).
 
 ## 15. Risks
 
-- Large kernel builds need RAM/time — mitigated by `tinyconfig` in CI and
-  `POLISITE_KERNEL_JOBS` caps.
-- Keeping fragments in sync with Deposit — shared broad cfg reduces drift.
+- Mixing 4 toolchains increases build complexity — mitigated by one script and a
+  fixed FFI ABI.
+- `x86_64-unknown-none` + Limine version drift — pin both (see `build.sh`).
+- Bringing up real hardware drivers is the long pole; QEMU (VirtIO) is the
+  primary dev target.

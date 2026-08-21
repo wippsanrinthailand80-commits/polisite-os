@@ -1,0 +1,21 @@
+[package]
+name = "polisite-kernel"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# Limine boot protocol bindings. The bootloader shipped in build/build.sh is
+# Limine v12; its protocol is backward compatible with the request revisions
+# this crate emits. Keep the two in sync via LIMINE_VER in build.sh.
+limine = "0.6"
+
+[lib]
+crate-type = ["staticlib"]
+name = "kernel"
+
+[profile.release]
+panic = "abort"
+opt-level = 3
+debug = false
+lto = false
+codegen-units = 1

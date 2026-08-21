@@ -11,70 +11,56 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install kernel build deps
+      - name: Install system tools
         run: |
           sudo apt-get update
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
-            build-essential bc flex bison libelf-dev libssl-dev \
-            wget xz-utils cpio kmod ccache \
-            nasm gcc-multilib make lld llvm mtools xorriso qemu-system-x86
-          ccache --version || true
+          sudo apt-get install -y nasm gcc gcc-multilib make lld llvm mtools xorriso qemu-system-x86
+          # limine is fetched by build.sh
 
-      - name: Build Linux kernel (x86_64, full defconfig+broad for realistic size)
-        run: |
-          export POLISITE_ARCH=x86_64
-          export POLISITE_KERNEL_TINY=0
-          export POLISITE_KERNEL_JOBS=$(nproc)
-          bash build/build.sh
-          echo "--- kernel artefact ---"
-          ls -lh build/output/kernel/boot/
-          file build/output/kernel/boot/vmlinuz-*
+      # The limine crate 0.6.x gates `#![feature(ptr_metadata)]`, so the kernel
+      # builds on nightly. rust-toolchain.toml selects it; this step installs it.
+      - name: Install Rust (nightly)
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: nightly
+          targets: x86_64-unknown-none
 
-      - name: QEMU smoke — does the kernel+initramfs boot?
+      - name: Install Zig
+        uses: korandoru/setup-zig@v1
+        with:
+          zig-version: 0.13.0
+
+      - name: Build kernel + ISO
+        run: bash build/build.sh
+
+      - name: QEMU smoke test
         run: |
           set -uo pipefail
-          KERN=$(ls build/output/kernel/boot/vmlinuz-* | head -n1)
-          INITRD=build/output/kernel/boot/initrd
-          echo "Booting $KERN + $INITRD ..."
-          timeout 30 qemu-system-x86_64 \
+          # The kernel writes 0x10 to port 0xf4 on entry (ISA debug exit).
+          # If the kernel is entered, QEMU exits with 0x10 (16).
+          # We run with a generous timeout; success is judged by exit code 16.
+          rc=0
+          timeout 60 qemu-system-x86_64 \
             -m 512 -smp 1 -accel tcg \
-            -kernel "$KERN" -initrd "$INITRD" \
-            -append "console=ttyS0 earlyprintk=serial root=/dev/ram0 rdinit=/init panic=1" \
-            -serial file:serial.log -display none -nographic -device isa-debug-exit,iobase=0xf4
+            -cdrom build/output/polisite.iso -boot d \
+            -serial file:serial.log -display none \
+            -device isa-debug-exit,iobase=0xf4 || rc=$?
+          echo "QEMU exit code: $rc"
           echo "--- serial log ---"
           cat serial.log
-          grep -q "Polisite OS — initramfs banner" serial.log
-          grep -q "Polisite OS — boot OK" serial.log
-          echo "Kernel+initramfs smoke passed."
-
-      - name: Verify ISO size (~200 MB demo)
-        run: |
-          ls -lh build/output/polisite.iso
-          du -sh build/output/polisite.iso
-          SIZE=$(stat -c%s build/output/polisite.iso)
-          MB=$(( SIZE / 1024 / 1024 ))
-          echo "ISO size: ${MB} MB"
-          if [ "$MB" -lt 150 ] || [ "$MB" -gt 300 ]; then
-            echo "ISO size outside expected 150–300 MB window" >&2
+          # Expected exit code: 16 (0x10) = kernel entered.
+          if [ "$rc" -ne 16 ]; then
+            echo "Expected QEMU exit code 16 (kernel entered), got $rc"
             exit 1
           fi
+          # Also verify the banner is in the serial log as a secondary check.
+          grep -q "boot OK" serial.log || {
+            echo "Boot banner not found in serial log" >&2
+            exit 1
+          }
 
-      - name: QEMU smoke — does the ISO boot?
-        run: |
-          set -uo pipefail
-          timeout 30 qemu-system-x86_64 -m 512 -smp 1 -accel tcg \
-            -cdrom build/output/polisite.iso -boot d \
-            -serial file:iso-serial.log -display none -nographic -device isa-debug-exit,iobase=0xf4
-          echo "--- ISO serial log ---"
-          cat iso-serial.log
-          grep -q "Polisite OS — initramfs banner" iso-serial.log
-          grep -q "Polisite OS — boot OK" iso-serial.log
-          echo "ISO smoke passed."
-
-      - name: Upload kernel + ISO
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: polisite-kernel+iso-x86_64
-          path: |
-            build/output/kernel/boot/vmlinuz-*
-            build/output/polisite.iso
+          name: polisite-iso
+          path: build/output/polisite.iso

@@ -2,11 +2,12 @@
 
 Ordered, living plan. Each phase is independently testable under QEMU.
 
-## Phase 0 — Linux kernel (x86_64) ✅
-- Reuses **Deposit** kernel: upstream Linux **6.6.58 LTS** via `build/build-kernel.sh`
-  (`defconfig` + `polisite-broad.cfg`; `tinyconfig` in CI).
-- QEMU `-kernel` smoke test prints `Linux version 6.6.58` on serial.
-- From-scratch Rust/C/Zig/asm work archived in git history (`60db77b^`).
+## Phase 0 — Skeleton & toolchain ✅ (this repo)
+- Repo layout, DESIGN.md, README.
+- Build pipeline: nasm + gcc + zig + cargo + ld.lld → `polisite.elf`.
+- Limine hybrid ISO; `run-qemu.sh`.
+- **Definition of done**: QEMU boots to a framebuffer banner that proves the
+  Rust↔C↔Zig↔asm FFI works (each language prints/returns a value).
 
 ## Phase 1 — Kernel core (the "real OS" feeling)
 - Serial + framebuffer drivers; early panic/debug.
@@ -32,16 +33,14 @@ Ordered, living plan. Each phase is independently testable under QEMU.
 - Initial ramdisk (tarfs) + a native read/write FS; FAT32 for USB.
 - USB (xHCI) basics.
 
-## Phase 5 — Userspace, boot & bundled apps
-- `debootstrap` Noble rootfs (systemd, `apt`/`dpkg` + `.mlpds`/`aqa` compat).
-- **Quiet + logo boot**: Plymouth `polisite-quiet` theme (centered logo, no spinner)
-  + `quiet splash` on the kernel cmdline; fast, minimal boot.
-- **Bundled apps** (Spirit Shores excluded until finished):
-  - **VS Code**, **Chrome**, **Steam** (via `aqa` + `steam-installer`; Chrome/VS Code need external repos, installed on first boot/baked when possible),
-  - **AI demo** (`tools/polisite-ai-demo.py` → `polisite-ai-demo` userspace service),
-  - **Placeholder games** (`supertux`, `0ad`) as generic gaming payloads,
-  - `firefox-esr` retained as fallback browser.
-- **Polisite's own installers** (ALP + MSX editions) + foreign `.deb`/`.pkg.tar.zst`/`.mlpds` shims.
+## Phase 5 — Userspace & packaging
+- Static `init` + shell; a small libc + program loader.
+- **Polisite's own installer** (installs Polisite to disk, multi-boot coexist),
+  shipping as two editions: **ALP** and **MSX** (variant behaviour TBD).
+- **Foreign app-install support**: consume `.deb` (Ubuntu/Mint), `.pkg.tar.zst`
+  (Arch), and `.mlpds`+`aqa` (Deposition) via compatibility shims onto Polisite's
+  native package database — not forks of each upstream tool.
+- Graphics/audio stack enough to host a simple game.
 
 ## Phase 6 — Real hardware & polish
 - Validate on a real PC (BIOS + UEFI USB install).
