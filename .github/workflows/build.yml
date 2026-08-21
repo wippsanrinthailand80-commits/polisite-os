@@ -38,7 +38,8 @@ jobs:
             ~/.cargo/git
             kernel/target
           key: ${{ runner.os }}-cargo-${{ hashFiles('kernel/Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-cargo-
+          restore-keys: |
+            ${{ runner.os }}-cargo-
 
       - name: Cache Limine
         uses: actions/cache@v4
