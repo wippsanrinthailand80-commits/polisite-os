@@ -19,6 +19,10 @@ file "$POLISITE_KERNEL_OUT/boot/vmlinuz-"* 2>/dev/null | head -1 || true
 echo "size:"
 du -sh "$POLISITE_KERNEL_OUT/boot/vmlinuz-"* 2>/dev/null | head -1 || true
 
+echo "==> [initramfs] minimal busybox + /init"
+bash "$ROOT/tools/make_initramfs.sh" "$POLISITE_KERNEL_OUT/boot/initrd"
+ls -lh "$POLISITE_KERNEL_OUT/boot/initrd" || true
+
 # --- 200 MB demo ISO with real content (quiet+logo) ---
 echo "==> [assets] generating ~190 MB real-content payload"
 python3 "$ROOT/tools/make_assets.py" "$ROOT/build/output/assets" 190
@@ -37,6 +41,7 @@ echo "==> [iso] building 200 MB demo ISO"
 rm -rf "$ROOT/build/output/iso_root"
 mkdir -p "$ROOT/build/output/iso_root/boot" "$ROOT/build/output/iso_root/EFI/BOOT" "$ROOT/build/output/iso_root/assets"
 cp "$POLISITE_KERNEL_OUT/boot/vmlinuz-"* "$ROOT/build/output/iso_root/boot/vmlinuz-6.6.58"
+cp "$POLISITE_KERNEL_OUT/boot/initrd" "$ROOT/build/output/iso_root/boot/initrd"
 cp "$ROOT/build/limine.conf" "$ROOT/build/output/iso_root/boot/limine.conf"
 cp "$ROOT/build/plymouth/polisite-quiet/logo.png" "$ROOT/build/output/iso_root/assets/" 2>/dev/null || true
 cp "$ROOT/build/output/assets/polisite-assets.tar" "$ROOT/build/output/iso_root/assets/"

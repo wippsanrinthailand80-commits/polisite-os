@@ -30,25 +30,22 @@ jobs:
           ls -lh build/output/kernel/boot/
           file build/output/kernel/boot/vmlinuz-*
 
-      - name: QEMU smoke — does the kernel boot?
+      - name: QEMU smoke — does the kernel+initramfs boot?
         run: |
           set -uo pipefail
           KERN=$(ls build/output/kernel/boot/vmlinuz-* | head -n1)
-          echo "Booting $KERN with QEMU (x86_64) ..."
+          INITRD=build/output/kernel/boot/initrd
+          echo "Booting $KERN + $INITRD ..."
           timeout 30 qemu-system-x86_64 \
             -m 512 -smp 1 -accel tcg \
-            -kernel "$KERN" \
-            -append "console=ttyS0 earlyprintk=serial" \
-            -serial file:serial.log -display none -nographic || rc=$?
-          echo "QEMU exit code: ${rc:-0}"
-          echo "--- serial log (first 80 lines) ---"
-          cat serial.log | head -n 80
-          # A Linux boot always prints "Linux version" on the serial console.
-          grep -q "Linux version" serial.log || {
-            echo "Kernel did not print 'Linux version' — boot may have failed" >&2
-            exit 1
-          }
-          echo "Smoke test passed."
+            -kernel "$KERN" -initrd "$INITRD" \
+            -append "console=ttyS0 earlyprintk=serial root=/dev/ram0 rdinit=/init panic=1" \
+            -serial file:serial.log -display none -nographic -device isa-debug-exit,iobase=0xf4
+          echo "--- serial log ---"
+          cat serial.log
+          grep -q "Polisite OS — initramfs banner" serial.log
+          grep -q "Polisite OS — boot OK" serial.log
+          echo "Kernel+initramfs smoke passed."
 
       - name: Verify ISO size (~200 MB demo)
         run: |
@@ -67,10 +64,12 @@ jobs:
           set -uo pipefail
           timeout 30 qemu-system-x86_64 -m 512 -smp 1 -accel tcg \
             -cdrom build/output/polisite.iso -boot d \
-            -serial file:iso-serial.log -display none -nographic || true
-          echo "--- ISO serial log (first 40 lines) ---"
-          cat iso-serial.log | head -n 40 || true
-          echo "(ISO boot smoke: kernel inside ISO is same vmlinuz; detailed ISO boot check is best-effort)"
+            -serial file:iso-serial.log -display none -nographic -device isa-debug-exit,iobase=0xf4
+          echo "--- ISO serial log ---"
+          cat iso-serial.log
+          grep -q "Polisite OS — initramfs banner" iso-serial.log
+          grep -q "Polisite OS — boot OK" iso-serial.log
+          echo "ISO smoke passed."
 
       - name: Upload kernel + ISO
         uses: actions/upload-artifact@v4
