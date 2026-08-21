@@ -29,7 +29,7 @@ proves the Rust↔C↔Zig↔asm FFI works. Everything beyond is planned.
 ```bash
 rustup target add x86_64-unknown-none
 # plus, from your package manager:
-nasm  gcc (or clang)  zig  lld (ld.lld)  limine  qemu-system-x86_64
+nasm  gcc (or clang)  zig  lld (provides ld.lld)  llvm (llvm-objcopy)  mtools  limine  qemu-system-x86_64
 ```
 
 ## Build & run
