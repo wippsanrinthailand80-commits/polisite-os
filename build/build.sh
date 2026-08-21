@@ -22,6 +22,9 @@ LIMINE_VER="${LIMINE_VER:-12.6.0}"
 echo "==> [asm]  nasm"
 nasm -f elf64 "$KERNEL/asm/io.asm" -o "$OUT/io.o"
 
+# --- generate real-content ramdisk (splash + docs), embedded into the kernel ---
+python3 "$ROOT/tools/make_assets.py" "$KERNEL/src" "${RAMDISK_MB:-96}"
+
 echo "==> [c]    gcc"
 gcc -c -ffreestanding -fno-pic -mno-red-zone -nostdlib -O2 -m64 \
     "$KERNEL/c/rt.c" -o "$OUT/rt.o"
@@ -50,9 +53,11 @@ if [ ! -d "$LIMINE_DIR/bin" ]; then
 fi
 
 rm -rf "$OUT/iso_root"
-mkdir -p "$OUT/iso_root/boot" "$OUT/iso_root/EFI/BOOT"
+mkdir -p "$OUT/iso_root/boot" "$OUT/iso_root/EFI/BOOT" "$OUT/iso_root/assets"
 cp "$OUT/polisite.elf"              "$OUT/iso_root/boot/polisite.elf"
 cp "$KERNEL/limine.conf"            "$OUT/iso_root/boot/limine.conf"
+# Carry the real-content ramdisk on the ISO as well (real content, not padding).
+cp "$KERNEL/src/embedded_ramdisk.tar" "$OUT/iso_root/assets/ramdisk.tar"
 cp "$LIMINE_DIR/bin/limine-bios-cd.bin" "$OUT/iso_root/boot/"
 cp "$LIMINE_DIR/bin/limine-uefi-cd.bin" "$OUT/iso_root/boot/"
 cp "$LIMINE_DIR/bin/limine-bios.sys"    "$OUT/iso_root/boot/"

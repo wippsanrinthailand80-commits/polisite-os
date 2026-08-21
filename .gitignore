@@ -6,6 +6,10 @@ target/
 *.iso
 *.img
 
+# Generated at build time (embedded into the kernel)
+kernel/src/embedded_ramdisk.tar
+kernel/src/splash.rgb
+
 # Editor / OS
 .DS_Store
 *.swp
