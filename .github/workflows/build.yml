@@ -33,7 +33,7 @@ jobs:
       - name: Build kernel + ISO
         run: bash build/build.sh
 
-- name: QEMU smoke test
+      - name: QEMU smoke test
         run: |
           set -uo pipefail
           # The kernel writes 0x10 to port 0xf4 on entry (ISA debug exit).
