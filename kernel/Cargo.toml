@@ -1,0 +1,19 @@
+[package]
+name = "polisite-kernel"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# Pin the Limine bindings to the bootloader version used in build/build.sh.
+limine = "0.4"
+
+[lib]
+crate-type = ["staticlib"]
+name = "kernel"
+
+[profile.release]
+panic = "abort"
+opt-level = 3
+debug = false
+lto = false
+codegen-units = 1

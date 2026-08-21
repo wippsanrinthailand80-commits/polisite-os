@@ -1,0 +1,14 @@
+# Build artifacts
+build/output/
+target/
+*.o
+*.elf
+*.iso
+*.img
+
+# Editor / OS
+.DS_Store
+*.swp
+
+# Local env
+.env
